@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from youtube_transcript_api import TranscriptsDisabled, YouTubeTranscriptApi
+from langchain_community.document_loaders import YoutubeLoader
 
 
 class TranscriptFetchError(RuntimeError):
@@ -23,6 +23,13 @@ def _language_display_name(language: str) -> str:
     if code == "en":
         return "English"
     return code.upper() if code else "configured"
+
+
+def _fetch_with_langchain_loader(video_id: str, language_candidates: list[str]) -> str:
+    loader = YoutubeLoader(video_id=video_id, language=language_candidates)
+    docs = loader.load()
+    transcript = " ".join(doc.page_content.strip() for doc in docs if doc.page_content.strip())
+    return transcript
 
 
 def extract_video_id(video_url_or_id: str, language: str = "en") -> str:
@@ -73,14 +80,10 @@ def fetch_transcript(video_id: str, language: str = "en") -> str:
         language_candidates.extend(["en-US", "en-GB", "en-IN", "en-CA", "en-AU"])
 
     try:
-        transcript_list = YouTubeTranscriptApi().fetch(
-            video_id.strip(),
-            languages=language_candidates,
-        )
-    except TranscriptsDisabled as exc:
+        transcript = _fetch_with_langchain_loader(video_id.strip(), language_candidates)
+    except ImportError as exc:
         raise TranscriptFetchError(
-            f"{language_name} captions are disabled for this video. "
-            f"Please paste a YouTube link with {language_name} captions."
+            "Missing dependency for transcript loading. Install youtube-transcript-api and retry."
         ) from exc
     except Exception as exc:
         root_cause = str(exc).strip() or exc.__class__.__name__
@@ -91,14 +94,10 @@ def fetch_transcript(video_id: str, language: str = "en") -> str:
             f"If this works locally but fails on Streamlit Cloud, the platform IP may be rate-limited or blocked by YouTube."
         ) from exc
 
-    transcript = " ".join(
-        chunk.text.strip() for chunk in transcript_list if getattr(chunk, "text", "").strip()
-    )
-
     if not transcript:
         raise TranscriptFetchError(
-            f"The {language_name} transcript is empty. "
-            f"Please paste a YouTube link with spoken {language_name} content."
+            f"No {language_name} transcript was found for this video. "
+            f"Please paste a YouTube link with {language_name} captions."
         )
 
     return transcript

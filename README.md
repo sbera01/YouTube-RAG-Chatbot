@@ -11,7 +11,7 @@ This project builds a Retrieval-Augmented Generation (RAG) chatbot for YouTube v
 ## Features
 - Accepts a YouTube URL and extracts video ID automatically in backend.
 - Enforces English transcript workflow using TRANSCRIPT_LANGUAGE=en.
-- Fetches transcript and stores it locally for reuse.
+- Fetches transcript via LangChain YoutubeLoader, then stores it locally for reuse.
 - Splits transcript into chunks for semantic retrieval.
 - Generates HuggingFace embeddings and stores vectors in local FAISS index.
 - Uses similarity search to retrieve top relevant context.
@@ -25,7 +25,7 @@ This project builds a Retrieval-Augmented Generation (RAG) chatbot for YouTube v
 - FAISS (local vector store)
 - HuggingFace Embeddings
 - HuggingFace Inference Endpoint (LLaMA 3.1)
-- youtube-transcript-api
+- LangChain YoutubeLoader
 
 ## Arc
 Architecture flow:

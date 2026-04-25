@@ -67,17 +67,28 @@ def fetch_transcript(video_id: str, language: str = "en") -> str:
     if not video_id.strip():
         raise TranscriptFetchError("Video ID is required.")
 
+    language_candidates = [language]
+    if language.strip().lower() == "en":
+        # Some videos expose region-specific English subtitle codes only.
+        language_candidates.extend(["en-US", "en-GB", "en-IN", "en-CA", "en-AU"])
+
     try:
-        transcript_list = YouTubeTranscriptApi().fetch(video_id.strip(), languages=[language])
+        transcript_list = YouTubeTranscriptApi().fetch(
+            video_id.strip(),
+            languages=language_candidates,
+        )
     except TranscriptsDisabled as exc:
         raise TranscriptFetchError(
             f"{language_name} captions are disabled for this video. "
             f"Please paste a YouTube link with {language_name} captions."
         ) from exc
     except Exception as exc:
+        root_cause = str(exc).strip() or exc.__class__.__name__
         raise TranscriptFetchError(
-            f"Could not fetch a {language_name} transcript for this video. "
-            f"Please paste a YouTube link with {language_name} captions."
+            f"Could not fetch an {language_name} transcript for this video. "
+            f"Please paste a YouTube link with {language_name} captions. "
+            f"Root cause: {root_cause}. "
+            f"If this works locally but fails on Streamlit Cloud, the platform IP may be rate-limited or blocked by YouTube."
         ) from exc
 
     transcript = " ".join(

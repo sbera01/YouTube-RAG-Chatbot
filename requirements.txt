@@ -1,0 +1,12 @@
+faiss-cpu
+huggingface-hub
+langchain
+langchain-community
+langchain-core
+langchain-huggingface
+langchain-text-splitters
+python-dotenv
+sentence-transformers
+streamlit
+tiktoken
+youtube-transcript-api

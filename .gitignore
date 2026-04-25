@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Local data artifacts
+data/faiss/*
+!data/faiss/.gitkeep
+data/transcripts/*
+!data/transcripts/.gitkeep

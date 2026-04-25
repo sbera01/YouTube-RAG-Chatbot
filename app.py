@@ -24,9 +24,45 @@ def load_embeddings():
     return get_embedding_model(settings)
 
 
+def build_context_text(retriever, question: str) -> str:
+    docs = retriever.invoke(question)
+    context_text = "\n\n---\n\n".join(
+        doc.page_content.strip() for doc in docs if doc.page_content.strip()
+    )
+    return context_text or "No context retrieved for this question."
+
+
+def render_context_popup(context_text: str, key_suffix: str) -> None:
+    if not context_text:
+        return
+
+    if hasattr(st, "popover"):
+        with st.popover("View context sent to LLM"):
+            st.text_area(
+                "Context sent to LLM",
+                value=context_text,
+                height=260,
+                width=700,
+                disabled=True,
+                key=f"context_popup_{key_suffix}",
+            )
+    else:
+        with st.expander("View context sent to LLM"):
+            st.text_area(
+                "Context sent to LLM",
+                value=context_text,
+                height=260,
+                width=700,
+                disabled=True,
+                key=f"context_popup_{key_suffix}",
+            )
+
+
 def initialize_session_state() -> None:
     if "rag_chain" not in st.session_state:
         st.session_state.rag_chain = None
+    if "retriever" not in st.session_state:
+        st.session_state.retriever = None
     if "active_video_link" not in st.session_state:
         st.session_state.active_video_link = ""
     if "active_video_id" not in st.session_state:
@@ -78,6 +114,7 @@ with st.sidebar:
                     retriever = get_retriever(vector_store, settings)
 
                     st.session_state.rag_chain = build_rag_chain(retriever, settings)
+                    st.session_state.retriever = retriever
                     st.session_state.active_video_link = video_link.strip()
                     st.session_state.active_video_id = video_id
                     st.session_state.messages = []
@@ -95,14 +132,16 @@ if st.session_state.rag_chain is None:
 else:
     st.write(f"Active video ID: {st.session_state.active_video_id}")
 
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant":
+            render_context_popup(message.get("context", ""), key_suffix=f"history_{idx}")
 
 question = st.chat_input("Ask a question about the indexed video")
 
 if question:
-    if st.session_state.rag_chain is None:
+    if st.session_state.rag_chain is None or st.session_state.retriever is None:
         st.warning("Build an index first from the sidebar.")
     else:
         st.session_state.messages.append({"role": "user", "content": question})
@@ -112,6 +151,11 @@ if question:
         with st.chat_message("assistant"):
             with st.spinner("Generating answer..."):
                 try:
+                    context_text = build_context_text(st.session_state.retriever, question)
+                except Exception as exc:
+                    context_text = f"Context retrieval failed: {exc}"
+
+                try:
                     answer = st.session_state.rag_chain.invoke(question)
                 except Exception as exc:
                     answer = "I could not generate an answer right now."
@@ -119,5 +163,15 @@ if question:
                     st.exception(exc)
 
                 st.markdown(answer)
+                render_context_popup(
+                    context_text,
+                    key_suffix=f"live_{len(st.session_state.messages)}",
+                )
 
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": answer,
+                "context": context_text,
+            }
+        )
